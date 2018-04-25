@@ -65,6 +65,20 @@ module.exports = class CloudFormation {
     }
 
     /**
+     * Delete a CloudFormation Stack in AWS
+     * @param stackName the stack to give to the name. It MUST to be unique in the WHOLE region the Stack is created in
+     * @param templateUrl url to the desired template.
+     * @param additionalParams additional parameter array to add to CF script
+     * @returns {Promise.<TResult>}
+     */
+    deleteCloudFormationStack(stackName) {
+        return this.cf.deleteStack({
+            StackName: stackName
+        }).promise()
+            .then(() => this._stackCreationEventListener(stackName));
+    }
+
+    /**
      * Fetch the name of the ECR repository out of the CloudFormation Stack.
      * @param stackId
      * @returns {Promise.<TResult>}

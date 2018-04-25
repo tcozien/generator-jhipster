@@ -114,7 +114,7 @@ function _getFriendlyNameFromTag(awsObject) {
  * Ask user what type of application is to be created?
  */
 function askTypeOfApplication() {
-    if (this.abort) return null;
+    if (this.abort || this.regenerate) return null;
     const done = this.async();
 
     const prompts = [{
@@ -152,7 +152,7 @@ function askTypeOfApplication() {
  * Ask user what type of Region is to be created?
  */
 function askRegion() {
-    if (this.abort) return null;
+    if (this.abort || this.regenerate) return null;
     const done = this.async();
     const prompts = [
         {
@@ -180,7 +180,7 @@ function askRegion() {
  * Ask user for CloudFormation name.
  */
 function askCloudFormation() {
-    if (this.abort) return null;
+    if (this.abort || this.regenerate) return null;
     const done = this.async();
     const prompts = [
         {
@@ -218,7 +218,7 @@ function askCloudFormation() {
  * As user to select AWS performance.
  */
 function askPerformances() {
-    if (this.abort) return null;
+    if (this.abort || this.regenerate) return null;
     const done = this.async();
     const chainPromises = (index) => {
         if (index === this.appConfigs.length) {
@@ -243,7 +243,7 @@ function askPerformances() {
 }
 
 function promptPerformance(config, awsConfig = { performance: 'low' }) {
-    if (this.abort) return null;
+    if (this.abort || this.regenerate) return null;
 
     const prodDatabaseType = config.prodDatabaseType;
 
@@ -287,7 +287,7 @@ function promptPerformance(config, awsConfig = { performance: 'low' }) {
  * Ask about scaling
  */
 function askScaling() {
-    if (this.abort) return null;
+    if (this.abort || this.regenerate) return null;
     const done = this.async();
     const chainPromises = (index) => {
         if (index === this.appConfigs.length) {
@@ -311,7 +311,7 @@ function askScaling() {
 }
 
 function promptScaling(config, awsConfig = { scaling: 'low' }) {
-    if (this.abort) return null;
+    if (this.abort || this.regenerate) return null;
 
     const scalingLevels = _(SCALING_TO_CONFIG).keys()
         .map((key) => {
@@ -339,7 +339,7 @@ function promptScaling(config, awsConfig = { scaling: 'low' }) {
  * Ask user to select target Virtual Private Network
  */
 function askVPC() {
-    if (this.abort) return null;
+    if (this.abort || this.regenerate) return null;
     const done = this.async();
 
     const vpcList = this.awsFacts.availableVpcs.map((vpc) => {
@@ -378,7 +378,7 @@ function askVPC() {
  * Ask user to select availability information (availability, zones)/
  */
 function askForSubnets() {
-    if (this.abort) return null;
+    if (this.abort || this.regenerate) return null;
     const done = this.async();
 
     const subnetList = _.map(this.awsFacts.availableSubnets, (sn) => {
@@ -435,7 +435,7 @@ function askForSubnets() {
 }
 
 function askForDBPasswords() {
-    if (this.abort) return null;
+    if (this.abort || this.regenerate) return null;
     const done = this.async();
     const chainPromises = (index) => {
         if (index === this.appConfigs.length) {
@@ -474,7 +474,7 @@ function promptDBPassword(config) {
  * Ask user if they would like to deploy now?
  */
 function askDeployNow() {
-    if (this.abort) return null;
+    if (this.abort || this.regenerate) return null;
     const done = this.async();
     const prompts = [
         {

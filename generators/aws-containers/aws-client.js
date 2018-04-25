@@ -237,7 +237,7 @@ function _getAuthorizationToken() {
  * @returns {Promise}
  */
 function createS3Bucket(bucketName, region = DEFAULT_REGION) {
-    const createBuckerParams = {
+    const createBucketParams = {
         Bucket: bucketName
     };
     return spinner(new Promise((resolve, reject) => s3.headBucket({
@@ -249,7 +249,7 @@ function createS3Bucket(bucketName, region = DEFAULT_REGION) {
             }
         })
         .then(() =>
-            s3.createBucket(createBuckerParams).promise()
+            s3.createBucket(createBucketParams).promise()
                 .then(resolve)
                 .catch(error => reject(new Error(`There was an error during the creation of the S3 Bucket ${chalk.bold(bucketName)} in region ${chalk.bold(region)}`))))));
 }

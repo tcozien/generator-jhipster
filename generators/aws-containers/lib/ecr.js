@@ -43,4 +43,18 @@ module.exports = class ECR {
         }).promise()
             .then(result => _(result.repositories).first().repositoryUri);
     }
+
+    /**
+     * Delete the container repository.
+     * @param repositoryName
+     * @returns {Promise.<string>}
+     */
+    deleteEcrRepository(repositoryName){
+        var params = {
+          force: true,
+          repositoryName: repositoryName
+         };
+        return this.ecr.deleteRepository(params).promise()
+            .then(result => result.repository.repositoryName);
+    }
 };

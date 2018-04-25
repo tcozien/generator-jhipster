@@ -182,6 +182,7 @@ function askForApps() {
  * TODO: Extracted from AdForApps. Move into utils?
  */
 function loadConfigs() {
+    if (this.regenerate) return;
     this.appConfigs = [];
     this.gatewayNb = 0;
     this.monolithicNb = 0;

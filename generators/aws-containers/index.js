@@ -58,7 +58,6 @@ const BOOTSTRAP_FILENAME = 'bootstrap-aws.yml.ejs';
  */
 const ssmPasswordProperty = (stacKName, applicationName) => `/${stacKName}/${applicationName}/spring.datasource.password`;
 
-
 module.exports = class extends BaseGenerator {
     constructor(args, opts) {
         super(args, opts);
@@ -78,6 +77,13 @@ module.exports = class extends BaseGenerator {
             type: Boolean,
             defaults: false
         });
+
+        // This adds support for a `--delete-stack` flag
+        this.option('delete-stack', {
+            desc: 'Delete AWS stack, docker container repository and S3 bucket',
+            type: Boolean,
+            defaults: false
+        });
     }
 
     get initializing() {
@@ -89,6 +95,7 @@ module.exports = class extends BaseGenerator {
                 this.deployNow = this.options['skip-install'];
                 this.skipUpload = this.options['skip-upload'];
                 this.skipBuild = this.options['skip-build'];
+                this.deleteStack = this.options['delete-stack'];
             },
             getConfig() {
                 this.aws = Object.assign(
@@ -171,8 +178,14 @@ module.exports = class extends BaseGenerator {
 
     get prompting() {
         return {
+            skipPrompting() {
+                if (this.deleteStack){
+                    this.log.ok('Skip prompting');
+                    this.regenerate = true;
+                }
+            },
             bonjour() {
-                if (this.abort) return;
+                if (this.abort || this.regenerate) return;
                 this.log(chalk.bold('❓ AWS prompting'));
             },
             askTypeOfApplication: prompts.askTypeOfApplication,
@@ -240,14 +253,15 @@ module.exports = class extends BaseGenerator {
     get configuring() {
         return {
             bonjour() {
-                if (this.abort) return;
+                if (this.abort || this.regenerate) return;
                 this.log(chalk.bold('🔧🛠️ AWS configuring'));
             },
             purgeAwsApps() {
+                if (this.regenerate) return;
                 this.aws.apps = this.aws.apps.filter(app => this.appConfigs.find(conf => conf.baseName === app.baseName));
             },
             getDockerLogin() {
-                if (this.abort) return null;
+                if (this.abort || this.regenerate) return null;
                 const done = this.async;
                 return awsClient.getDockerLogin()
                     .then((token) => {
@@ -270,15 +284,19 @@ module.exports = class extends BaseGenerator {
     get default() {
         return {
             bonjour() {
-                if (this.abort) return;
+                if (this.abort || this.regenerate) return;
                 this.log(chalk.bold('AWS default'));
             },
             updateBaseName() {
+                if (this.abort || this.regenerate) return;
                 this.appConfigs.forEach((config) => {
                     config.awsBaseName = config.baseName.toLowerCase().replace(/[^a-z^\d]/, '');
+                    this.log("config.awsBaseName");
+                    this.log(config.awsBaseName);
                 });
             },
             showAwsCacheWarning() {
+                if (this.abort || this.regenerate) return;
                 this.appConfigs.forEach((config) => {
                     if (config.cacheProvider !== 'no') {
                         this.log(chalk.yellow(`Warning ${config.baseName} is using a cache provider, scaling will not be available. Refer to an AWS native scaling service.`));
@@ -286,6 +304,7 @@ module.exports = class extends BaseGenerator {
                 });
             },
             addAWSSpringDependencies() {
+                if (this.abort || this.regenerate) return;
                 this.appConfigs.forEach((config) => {
                     const directory = `${this.directoryPath}${config.appFolder}`;
                     if (config.buildTool === 'maven') {
@@ -298,7 +317,7 @@ module.exports = class extends BaseGenerator {
                 });
             },
             setAuroraParameters() {
-                if (this.abort) return;
+                if (this.abort || this.regenerate) return;
                 this.appConfigs.forEach((appConfig) => {
                     const app = this.aws.apps.find(a => a.baseName === appConfig.baseName);
                     const postgresqlType = databaseTypes.POSTGRESQL;
@@ -311,7 +330,7 @@ module.exports = class extends BaseGenerator {
                 });
             },
             springProjectChanges() {
-                if (this.abort) return;
+                if (this.abort || this.regenerate) return;
                 const done = this.async();
 
                 this.appConfigs.forEach((config) => {
@@ -331,7 +350,7 @@ module.exports = class extends BaseGenerator {
                 });
             },
             generateCloudFormationTemplate() {
-                if (this.abort) return;
+                if (this.abort || this.regenerate) return;
                 const done = this.async();
 
                 this.template(BASE_TEMPLATE_FILENAME, BASE_TEMPLATE_PATH);
@@ -350,7 +369,7 @@ module.exports = class extends BaseGenerator {
     }
 
     _uploadTemplateToAWS(filename, path) {
-        if (this.abort) return null;
+        if (this.abort || this.regenerate) return null;
         const done = this.async;
 
         return awsClient.uploadTemplate(this.aws.s3BucketName, filename, path)
@@ -369,7 +388,7 @@ module.exports = class extends BaseGenerator {
     get end() {
         return {
             checkAndBuildImages() {
-                if (this.abort || !this.deployNow || this.skipBuild) return null;
+                if (this.abort || !this.deployNow || this.skipBuild || this.deleteStack) return null;
                 const done = this.async();
                 const cwd = process.cwd();
                 const promises = this.appConfigs.map(config => dockerUtils.checkAndBuildImages.call(
@@ -391,7 +410,7 @@ module.exports = class extends BaseGenerator {
                     });
             },
             createS3Bucket() {
-                if (this.abort || !this.deployNow) return null;
+                if (this.abort || !this.deployNow || this.deleteStack) return null;
                 const done = this.async;
                 return awsClient.createS3Bucket(this.aws.s3BucketName, this.aws.region)
                     .then((result) => {
@@ -406,7 +425,7 @@ module.exports = class extends BaseGenerator {
                     });
             },
             uploadBaseTemplate() {
-                if (this.abort || !this.deployNow) return null;
+                if (this.abort || !this.deployNow || this.deleteStack) return null;
                 const done = this.async;
                 return this._uploadTemplateToAWS('base.template.yml', BASE_TEMPLATE_PATH)
                     .then((result) => {
@@ -415,7 +434,7 @@ module.exports = class extends BaseGenerator {
                     });
             },
             uploadAppTemplate() {
-                if (this.abort || !this.deployNow) return null;
+                if (this.abort || !this.deployNow || this.deleteStack) return null;
                 const done = this.async;
                 const promises = this.aws.apps.map(config => this._uploadTemplateToAWS(APP_TEMPLATE_PATH(config.baseName), APP_TEMPLATE_PATH(config.baseName)));
 
@@ -427,7 +446,7 @@ module.exports = class extends BaseGenerator {
                     });
             },
             createOrUpdateStack() {
-                if (this.abort || !this.deployNow) return null;
+                if (this.abort || !this.deployNow || this.deleteStack) return null;
                 const done = this.async;
 
                 return awsClient.CF().getStack(this.aws.cloudFormationName)
@@ -467,7 +486,7 @@ module.exports = class extends BaseGenerator {
                     });
             },
             getElasticContainerRepositoryName() {
-                if (this.abort || !this.deployNow) return null;
+                if (this.abort || !this.deployNow || this.deleteStack) return null;
                 const done = this.async;
 
                 const promises = this.aws.apps.map(app => awsClient.CF().getEcrId(app.stackId)
@@ -484,7 +503,7 @@ module.exports = class extends BaseGenerator {
                     .then(() => done());
             },
             setSSMDatabasePassword() {
-                if (this.abort || !this.deployNow) return null;
+                if (this.abort || !this.deployNow || this.deleteStack) return null;
                 const done = this.async;
 
                 const promises = this.aws.apps.map((app) => {
@@ -513,7 +532,7 @@ module.exports = class extends BaseGenerator {
                     });
             },
             getEcrRepositoryURI() {
-                if (this.abort || !this.deployNow) return null;
+                if (this.abort || !this.deployNow || this.deleteStack) return null;
                 const done = this.async;
 
                 const promises = this.aws.apps.map(app => awsClient.ECR().getEcrRepositoryURI(app.EcrRepositoryName)
@@ -534,7 +553,7 @@ module.exports = class extends BaseGenerator {
                     });
             },
             tagDockerImage() {
-                if (this.abort || !this.deployNow || this.skipUpload) return null;
+                if (this.abort || !this.deployNow || this.skipUpload || this.deleteStack) return null;
                 const done = this.async;
 
                 const promises = this.aws.apps.map((app) => {
@@ -559,7 +578,7 @@ module.exports = class extends BaseGenerator {
                     });
             },
             loginToAws() {
-                if (this.abort || !this.deployNow || this.skipUpload) return null;
+                if (this.abort || !this.deployNow || this.skipUpload || this.deleteStack) return null;
                 const done = this.async;
                 return dockerCli.loginToAws(this.aws.region, this.aws.dockerLogin.accountId, this.aws.dockerLogin.username, this.aws.dockerLogin.password)
                     .then(() => {
@@ -573,7 +592,7 @@ module.exports = class extends BaseGenerator {
                     });
             },
             pushDockerImage() {
-                if (this.abort || !this.deployNow || this.skipUpload) return null;
+                if (this.abort || !this.deployNow || this.skipUpload || this.deleteStack) return null;
                 const done = this.async;
 
                 const promises = this.aws.apps.map((app) => {
@@ -595,7 +614,7 @@ module.exports = class extends BaseGenerator {
                     });
             },
             updateStack() {
-                if (this.abort || !this.deployNow) return null;
+                if (this.abort || !this.deployNow || this.deleteStack) return null;
                 const done = this.async;
                 const databasePasswords = this.awsFacts.apps.map(a => awsClient.CF().cfParameter(`${a.baseName}DBPassword`, a.database_Password));
                 const nestedStackIds = this.aws.apps.map(app => app.stackId);
@@ -618,6 +637,39 @@ module.exports = class extends BaseGenerator {
                     this.abort = true;
                     done();
                 });
+            },
+            deleteStack() {
+                if (this.deleteStack){
+                    // Remove all containers repositories
+                    const promises = this.aws.apps.map(app => awsClient.ECR().deleteEcrRepository(app.EcrRepositoryName)
+                        .then((repositoryDeleted) => {
+                            this.log.ok(`Remove repository container ${chalk.bold(repositoryDeleted)}`);
+                        })
+                        .catch((error) => {
+                            this.log.error(`Error when deleting repository container ${app.EcrRepositoryName} : ${error.message}`);
+                            this.abort = true;
+                        }));
+                    return Promise.all(promises)
+                        .then(() => {
+
+                           // Delete stack (and nested stacks)
+                           return awsClient.CF().deleteCloudFormationStack(this.aws.cloudFormationName)
+                           .then((result) => {
+                               this.log.ok(`The CloudFormation Stack ${chalk.bold(this.aws.cloudFormationName)} has been removed`);
+
+                                // Delete S3 repo
+
+
+                           }).catch((error) => {
+                               this.log.error(`There was an error deleting the stack: ${error.message}`);
+                               this.abort = true;
+                           });
+                        })
+                        .catch((e) => {
+                            this.abort = true;
+                            done();
+                        });
+                }
             },
             saveConf() {
                 delete this.aws.dockerLogin;
